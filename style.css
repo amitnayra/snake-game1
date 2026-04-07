@@ -11,3 +11,20 @@ canvas {
   margin: 20px auto;
   border: 2px solid #fff;
 }
+
+#leaderboard 
+{
+  list-style: none;
+  padding: 0;
+  max-width: 300px;
+  margin: 10px auto;
+  text-align: left;
+}
+
+#leaderboard li 
+{
+  background: #222;
+  margin: 5px 0;
+  padding: 8px;
+  border-radius: 5px;
+}
