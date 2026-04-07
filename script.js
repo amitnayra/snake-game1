@@ -1,81 +1,190 @@
-const canvas = document.getElementById("gameCanvas");
+// Canvas setup
+const canvas = document.createElement("canvas");
 const ctx = canvas.getContext("2d");
+document.body.appendChild(canvas);
 
-const box = 20;
-let snake = [{ x: 200, y: 200 }];
-let direction = "RIGHT";
+canvas.width = 400;
+canvas.height = 400;
+document.body.style.margin = 0;
+document.body.style.background = "#020617";
 
-let food = {
-  x: Math.floor(Math.random() * 20) * box,
-  y: Math.floor(Math.random() * 20) * box
-};
+// Game state
+let snake, direction, food, score, speed, gameOver, paused;
+let touchStartX = 0, touchStartY = 0;
 
-let score = 0;
+// Init game
+function init() {
+  snake = [{ x: 200, y: 200 }];
+  direction = { x: 1, y: 0 };
+  food = spawnFood();
+  score = 0;
+  speed = 2;
+  gameOver = false;
+  paused = false;
+}
+init();
 
-document.addEventListener("keydown", changeDirection);
-
-function changeDirection(event) {
-  if (event.key === "ArrowLeft" && direction !== "RIGHT") direction = "LEFT";
-  if (event.key === "ArrowUp" && direction !== "DOWN") direction = "UP";
-  if (event.key === "ArrowRight" && direction !== "LEFT") direction = "RIGHT";
-  if (event.key === "ArrowDown" && direction !== "UP") direction = "DOWN";
+// Food spawn
+function spawnFood() {
+  return {
+    x: Math.random() * 360 + 20,
+    y: Math.random() * 360 + 20,
+    t: 0 // animation timer
+  };
 }
 
-function draw() {
-  ctx.fillStyle = "#000";
-  ctx.fillRect(0, 0, 400, 400);
+// Game loop
+function loop() {
+  requestAnimationFrame(loop);
+  if (paused) return;
 
-  // Draw snake
-  ctx.fillStyle = "lime";
-  snake.forEach((segment, index) => {
-    ctx.fillRect(segment.x, segment.y, box, box);
-  });
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Draw food
-  ctx.fillStyle = "red";
-  ctx.fillRect(food.x, food.y, box, box);
+  if (gameOver) {
+    drawGameOver();
+    return;
+  }
 
-  let headX = snake[0].x;
-  let headY = snake[0].y;
+  update();
+  draw();
+}
+requestAnimationFrame(loop);
 
-  if (direction === "LEFT") headX -= box;
-  if (direction === "UP") headY -= box;
-  if (direction === "RIGHT") headX += box;
-  if (direction === "DOWN") headY += box;
+// Update
+function update() {
+  let head = {
+    x: snake[0].x + direction.x * speed,
+    y: snake[0].y + direction.y * speed
+  };
 
-  // Check collision with food
-  if (headX === food.x && headY === food.y) {
+  // Wall collision
+  if (head.x < 0 || head.x > 400 || head.y < 0 || head.y > 400) {
+    gameOver = true;
+  }
+
+  // Self collision
+  for (let i = 0; i < snake.length; i++) {
+    let dx = head.x - snake[i].x;
+    let dy = head.y - snake[i].y;
+    if (Math.sqrt(dx * dx + dy * dy) < 10) {
+      gameOver = true;
+    }
+  }
+
+  snake.unshift(head);
+
+  // Eat food
+  let dx = head.x - food.x;
+  let dy = head.y - food.y;
+  if (Math.sqrt(dx * dx + dy * dy) < 12) {
     score++;
-    food = {
-      x: Math.floor(Math.random() * 20) * box,
-      y: Math.floor(Math.random() * 20) * box
-    };
+    speed += 0.2;
+    food = spawnFood();
   } else {
     snake.pop();
   }
 
-  const newHead = { x: headX, y: headY };
+  food.t += 0.1;
+}
 
-  // Game over conditions
-  if (
-    headX < 0 || headY < 0 ||
-    headX >= 400 || headY >= 400 ||
-    collision(newHead, snake)
-  ) {
-    clearInterval(game);
-    alert("Game Over! Score: " + score);
+// Draw
+function draw() {
+  // Background grid glow
+  ctx.strokeStyle = "#0f172a";
+  for (let i = 0; i < 400; i += 20) {
+    ctx.beginPath();
+    ctx.moveTo(i, 0);
+    ctx.lineTo(i, 400);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(0, i);
+    ctx.lineTo(400, i);
+    ctx.stroke();
   }
 
-  snake.unshift(newHead);
+  // Draw snake (smooth circles)
+  snake.forEach((p, i) => {
+    let radius = i === 0 ? 8 : 6;
 
-  // Draw score
-  ctx.fillStyle = "white";
-  ctx.font = "20px Arial";
+    let grad = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, 10);
+    grad.addColorStop(0, "#4ade80");
+    grad.addColorStop(1, "#14532d");
+
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes
+    if (i === 0) {
+      ctx.fillStyle = "white";
+      ctx.beginPath();
+      ctx.arc(p.x - 3, p.y - 3, 1.5, 0, Math.PI * 2);
+      ctx.arc(p.x + 3, p.y - 3, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  // Draw animated food
+  let bounce = Math.sin(food.t) * 3;
+  let glow = ctx.createRadialGradient(food.x, food.y, 2, food.x, food.y, 12);
+  glow.addColorStop(0, "#f87171");
+  glow.addColorStop(1, "#7f1d1d");
+
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(food.x, food.y + bounce, 6, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Score
+  ctx.fillStyle = "#e2e8f0";
+  ctx.font = "16px Arial";
   ctx.fillText("Score: " + score, 10, 20);
 }
 
-function collision(head, array) {
-  return array.some(segment => segment.x === head.x && segment.y === head.y);
+// Game over UI
+function drawGameOver() {
+  ctx.fillStyle = "rgba(0,0,0,0.6)";
+  ctx.fillRect(0, 0, 400, 400);
+
+  ctx.fillStyle = "white";
+  ctx.font = "24px Arial";
+  ctx.fillText("Game Over", 130, 180);
+
+  ctx.font = "16px Arial";
+  ctx.fillText("Score: " + score, 150, 210);
+  ctx.fillText("Tap / Press R to Restart", 90, 240);
 }
 
-const game = setInterval(draw, 100);
+// Keyboard controls
+document.addEventListener("keydown", (e) => {
+  if (e.key === "ArrowUp" && direction.y === 0) direction = { x: 0, y: -1 };
+  if (e.key === "ArrowDown" && direction.y === 0) direction = { x: 0, y: 1 };
+  if (e.key === "ArrowLeft" && direction.x === 0) direction = { x: -1, y: 0 };
+  if (e.key === "ArrowRight" && direction.x === 0) direction = { x: 1, y: 0 };
+
+  if (e.key === "p") paused = !paused;
+  if (e.key === "r" && gameOver) init();
+});
+
+// Touch controls (swipe)
+canvas.addEventListener("touchstart", (e) => {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+});
+
+canvas.addEventListener("touchend", (e) => {
+  let dx = e.changedTouches[0].clientX - touchStartX;
+  let dy = e.changedTouches[0].clientY - touchStartY;
+
+  if (Math.abs(dx) > Math.abs(dy)) {
+    if (dx > 0 && direction.x === 0) direction = { x: 1, y: 0 };
+    else if (dx < 0 && direction.x === 0) direction = { x: -1, y: 0 };
+  } else {
+    if (dy > 0 && direction.y === 0) direction = { x: 0, y: 1 };
+    else if (dy < 0 && direction.y === 0) direction = { x: 0, y: -1 };
+  }
+
+  if (gameOver) init();
+});
